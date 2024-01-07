@@ -30,7 +30,7 @@ main(){
   [ ! -f /etc/platform-preboot ] || . /etc/platform-preboot
   
   if [ -z "$rootdev" ]; then
-    for bootarg in `cat /proc/cmdline`; do
+    for bootarg in $(cat /proc/cmdline); do
       case "$bootarg" in
         root=*) rootdev="${bootarg##root=}" ;;
         sdhci_tegra.en_boot_part_access=*) start_boot_partition="${bootarg##sdhci_tegra.en_boot_part_access=}" ;;
@@ -43,10 +43,10 @@ main(){
   if [ -n "$wait" -a ! -b "${rootdev}" ]; then
     echo "Waiting for ${rootdev}..."
     count=0
-    while [ $count -lt 25 ]; do
+    while [ "$count" -lt 25 ]; do
       test -b "${rootdev}" && break
       sleep 0.1
-      count=`expr $count + 1`
+      count=$(expr "$count" + 1)
     done
   fi
 
@@ -54,14 +54,14 @@ main(){
   count=0
   success=0
   echo "Checking to make sure mmcblk0p1, p2, and p3 are mounted" > /dev/kmsg
-  while [ $count -lt 100 ]; do
+  while [ "$count" -lt 100 ]; do
     if [[ -e /dev/mmcblk0p1 && -e /dev/mmcblk0p2 && -e /dev/mmcblk0p3 ]]; then
       echo "mmcblk0p1, p2, and p3 are mounted! Starting TMR..." > /dev/kmsg
       success=1
       break
     fi
     sleep 0.1
-    count=`expr $count + 1`
+    count=$(expr "$count" + 1)
   done
   # Reboot immediately if they were not mounted so we do not accidentally
   # try to correct the blobs with garbage
@@ -117,11 +117,11 @@ main(){
     # Now wait until they are finished
     for j in 1 2 3; do
       good="-"
-      while [ $good = "-" ]; do
+      while [ "$good" = "-" ]; do
         sleep 0.1
-        good=`cat /tmr/good$j`
+        good=$(cat /tmr/good$j)
       done
-      eval good$j=$good
+      eval good$j="$good"
     done 
 
     # Case A) None of the three copies was good! Do boot-tmr
@@ -130,7 +130,7 @@ main(){
       echo "Making sure!" > /dev/kmsg
       eval size=\$sizes$i
       eval skip=\$skips$i
-      boot-tmr $size /tmr/file1 /tmr/file2 /tmr/file3 /tmr/file
+      boot-tmr "$size" /tmr/file1 /tmr/file2 /tmr/file3 /tmr/file
 
       # Replace BLOBs and hashes in flash
       md5sum /tmr/file | head -c 32 > /tmr/hash
@@ -244,28 +244,28 @@ function checksum() {
 
   # Get some temporary variables (f=file; h=hash)
   part="/dev/mmcblk0p${j}"
-  eval size=\$sizes$i
-  eval skip_f=\$skips$i
-  eval skip_h=\$hash_skips$i
-  toff_f=`echo $partsize - $skip_f \* 512 | bc`
-  toff_h=`echo $partsize - $skip_h \* 512 | bc`
+  eval size=\$sizes"$i"
+  eval skip_f=\$skips"$i"
+  eval skip_h=\$hash_skips"$i"
+  toff_f=$(echo $partsize - "$skip_f" \* 512 | bc)
+  toff_h=$(echo $partsize - "$skip_h" \* 512 | bc)
 
   # Retrieve the file, leave it in memory at /file$j, and calculate the md5sum
-  tail -c $toff_f $part | head -c $size > /tmr/file$j
-  calculated=$(md5sum /tmr/file$j | head -c 32)
+  tail -c "$toff_f" "$part" | head -c "$size" > /tmr/file"$j"
+  calculated=$(md5sum /tmr/file"$j" | head -c 32)
 
   # Compare it to the md5sum stored, leaving the hash at /hash$j
-  tail -c $toff_h $part | head -c 32 > /tmr/hash$j  
-  existing=$(head -c 32 /tmr/hash$j)
-  if [ $calculated = $existing ]; then
-    echo -n "1" > /tmr/good$j
+  tail -c "$toff_h" "$part" | head -c 32 > /tmr/hash"$j"  
+  existing=$(head -c 32 /tmr/hash"$j")
+  if [ "$calculated" = "$existing" ]; then
+    echo -n "1" > /tmr/good"$j"
     echo "file $i version $j matches hash" > /dev/kmsg
   else
-    echo -n "0" > /tmr/good$j
+    echo -n "0" > /tmr/good"$j"
     echo "file $i version $j does not match hash" > /dev/kmsg
     echo "Calculated md5sum = $calculated" > /dev/kmsg
     echo "Existing md5sum   = $existing" > /dev/kmsg
-    rm /tmr/hash$j
+    rm /tmr/hash"$j"
   fi
 
 } 
@@ -293,7 +293,7 @@ function mount_and_launch() {
 ################################################################################
 function extract_and_boot() {
   echo "Starting ramdisk extraction" > /dev/kmsg
-  tar -xmf $1 -C /mnt/ramdisk
+  tar -xmf "$1" -C /mnt/ramdisk
   tar_rc=$?
   if [ ${tar_rc} -ne 0 ]; then
     echo "Decompression failed of file ${1} with code (${tar_rc})" > /dev/kmsg
