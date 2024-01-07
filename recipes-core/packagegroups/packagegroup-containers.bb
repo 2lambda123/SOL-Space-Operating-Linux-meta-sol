@@ -1,4 +1,4 @@
-SUMMARY = "SOL development applications" 
+SUMMARY = "SOL development applications"
 PACKAGE_ARCH = "${MACHINE_ARCH}"
 
 inherit packagegroup

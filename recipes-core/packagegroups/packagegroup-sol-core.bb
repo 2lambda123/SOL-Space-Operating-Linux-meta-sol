@@ -1,4 +1,4 @@
-SUMMARY = "SOL core dependencies" 
+SUMMARY = "SOL core dependencies"
 PACKAGE_ARCH = "${MACHINE_ARCH}"
 
 inherit packagegroup
