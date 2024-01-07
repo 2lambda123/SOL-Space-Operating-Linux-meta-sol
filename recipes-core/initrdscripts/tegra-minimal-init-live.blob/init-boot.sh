@@ -30,7 +30,7 @@ main(){
   [ ! -f /etc/platform-preboot ] || . /etc/platform-preboot
   
   if [ -z "$rootdev" ]; then
-    for bootarg in $(cat /proc/cmdline); do
+    for bootarg in "$(cat /proc/cmdline)"; do
       case "$bootarg" in
         root=*) rootdev="${bootarg##root=}" ;;
         sdhci_tegra.en_boot_part_access=*) start_boot_partition="${bootarg##sdhci_tegra.en_boot_part_access=}" ;;
@@ -40,11 +40,11 @@ main(){
     done
   fi
   
-  if [ -n "$wait" -a ! -b "${rootdev}" ]; then
-    echo "Waiting for ${rootdev}..."
+  if [ -n "$wait" -a ! -b "$rootdev" ]; then
+    echo "Waiting for $rootdev..."
     count=0
     while [ "$count" -lt 25 ]; do
-      test -b "${rootdev}" && break
+      test -b "$rootdev" && break
       sleep 0.1
       count=$(expr "$count" + 1)
     done
@@ -65,14 +65,14 @@ main(){
   done
   # Reboot immediately if they were not mounted so we do not accidentally
   # try to correct the blobs with garbage
-  if [ $success = 0 ]; then
+  if [ "$success" = 0 ]; then
     echo "mmcblk0p1, p2, and p3 were not mounted! Rebooting..." > /dev/kmsg
     reboot -f
   fi
   
   # Set up the variables needed to do the TMR checks and corrections 
   num_partitions="3"
-  boot_partition=${start_boot_partition}
+  boot_partition=$start_boot_partition
 
   skips1=INFO_FILE_OFFSET
   skips2=IMAGE_FILE_OFFSET
@@ -109,9 +109,9 @@ main(){
 
     # Attempt to do the checksums in parallel 
     for j in 1 2 3; do
-      echo -n "-" > /tmr/good$j
-      echo -n "-" > /tmr/hash$j
-      checksum $i $j &
+      echo -n "-" > /tmr/good"$j"
+      echo -n "-" > /tmr/hash"$j"
+      checksum "$i" "$j" &
     done
 
     # Now wait until they are finished
@@ -119,35 +119,35 @@ main(){
       good="-"
       while [ "$good" = "-" ]; do
         sleep 0.1
-        good=$(cat /tmr/good$j)
+        good=$(cat /tmr/good"$j")
       done
-      eval good$j="$good"
+      eval good"$j=$good"
     done 
 
     # Case A) None of the three copies was good! Do boot-tmr
     if [ "$good1 $good2 $good3" = "0 0 0" ]; then
       echo "Performing boot-tmr" > /dev/kmsg
       echo "Making sure!" > /dev/kmsg
-      eval size=\$sizes$i
-      eval skip=\$skips$i
+      eval size=\$sizes"$i"
+      eval skip=\$skips"$i"
       boot-tmr "$size" /tmr/file1 /tmr/file2 /tmr/file3 /tmr/file
 
       # Replace BLOBs and hashes in flash
       md5sum /tmr/file | head -c 32 > /tmr/hash
       for c in 1 2 3; do
         echo "Replacing bad copy: $c" > /dev/kmsg
-        eval dd if=/tmr/file of="/dev/mmcblk0p\${c}" seek=\$skips$i \
-          count=\$counts$i 2>/dev/null
-        eval dd if=/tmr/hash of="/dev/mmcblk0p\${c}" seek=\$hash_skips$i \
+        eval dd if=/tmr/file of="/dev/mmcblk0p\${c}" seek=\$skips"$i" \
+          count=\$counts"$i" 2>/dev/null
+        eval dd if=/tmr/hash of="/dev/mmcblk0p\${c}" seek=\$hash_skips"$i" \
           count=1 2>/dev/null
       done
  
     # Case B) We had at least one good copy. Use that to replace the others
     elif [ "$good1 $good2 $good3" != "1 1 1" ]; then
       echo "Finding good copy" > /dev/kmsg
-      if [ $good1 = 1 ]; then
+      if [ "$good1" = 1 ]; then
         g=1; mv /tmr/file1 /tmr/file; mv /tmr/hash1 /tmr/hash
-      elif [ $good2 = 1 ]; then
+      elif [ "$good2" = 1 ]; then
         g=2; mv /tmr/file2 /tmr/file; mv /tmr/hash2 /tmr/hash
       else
         g=3; mv /tmr/file3 /tmr/file; mv /tmr/hash3 /tmr/hash
@@ -156,11 +156,11 @@ main(){
       # Replace bad copy/copies
       echo "Good image found in $g; using it to replace bad ones" > /dev/kmsg
       for c in 1 2 3; do
-        if [ $(eval echo \$good$c) = 0 ]; then
+        if [ "$(eval echo \$good"$c")" = 0 ]; then
           echo "replacing bad copy: $c" > /dev/kmsg
-          eval dd if=/tmr/file of="/dev/mmcblk0p\${c}" seek=\$skips$i \
-            count=\$counts$i 2>/dev/null
-          eval dd if=/tmr/hash of="/dev/mmcblk0p\${c}" seek=\$hash_skips$i \
+          eval dd if=/tmr/file of="/dev/mmcblk0p\${c}" seek=\$skips"$i" \
+            count=\$counts"$i" 2>/dev/null
+          eval dd if=/tmr/hash of="/dev/mmcblk0p\${c}" seek=\$hash_skips"$i" \
             count=1 2>/dev/null
         fi
       done
@@ -173,16 +173,16 @@ main(){
  
     # If this is the first file, we pull the sizes of the remaining four files 
     # and print out information to the console
-    if [ $i = 1 ]; then
+    if [ "$i" = 1 ]; then
       echo -e "Contents of info file : \n" > /dev/kmsg
-      echo $(cat /tmr/file) > /dev/kmsg
+      echo "$(cat /tmr/file)" > /dev/kmsg
       sizes2=$(cat /tmr/file | head -c INFO_BYTES | tail -c INFO_BYTES)
       echo "sizes2 is $sizes2" > /dev/kmsg
-      sizes3=$(cat /tmr/file | head -c $(echo INFO_BYTES \* 2 | bc) | tail -c INFO_BYTES)
+      sizes3=$(cat /tmr/file | head -c "$(echo INFO_BYTES \* 2 | bc)" | tail -c INFO_BYTES)
       echo "sizes3 is $sizes3" > /dev/kmsg
-      sizes4=$(cat /tmr/file | head -c $(echo INFO_BYTES \* 3 | bc) | tail -c INFO_BYTES)
+      sizes4=$(cat /tmr/file | head -c "$(echo INFO_BYTES \* 3 | bc)" | tail -c INFO_BYTES)
       echo "sizes4 is $sizes4" > /dev/kmsg
-      sizes5=$(cat /tmr/file | head -c $(echo INFO_BYTES \* 4 | bc) | tail -c INFO_BYTES)
+      sizes5=$(cat /tmr/file | head -c "$(echo INFO_BYTES \* 4 | bc)" | tail -c INFO_BYTES)
       echo "sizes5 is $sizes5" > /dev/kmsg
     fi
   done
@@ -195,10 +195,10 @@ main(){
   echo "Attempting to mount config partition..." > /dev/kmsg
   e2fsck -f /dev/mmcblk0p4
   retval=$?
-  if [ $retval = 0 ]; then
+  if [ "$retval" = 0 ]; then
     echo "ext4 file system exists and is fine for config partition" > /dev/kmsg
     resize2fs /dev/mmcblk0p4 > /dev/kmsg
-  elif [ $retval = 1 ]; then
+  elif [ "$retval" = 1 ]; then
     echo "Errors successfully corrected on config partition" > /dev/kmsg
   else
     echo "Config filesystem does not exist or is too corrupt, making fs" > /dev/kmsg
@@ -212,10 +212,10 @@ main(){
   echo "Attempting to mount data partition..." > /dev/kmsg
   e2fsck -f /dev/mmcblk0p5
   retval=$? 
-  if [ $retval = 0 ]; then
+  if [ "$retval" = 0 ]; then
     echo "ext4 file system exists and is fine for data partition" > /dev/kmsg
     resize2fs /dev/mmcblk0p5 > /dev/kmsg
-  elif [ $retval = 1 ]; then
+  elif [ "$retval" = 1 ]; then
     echo "Errors successfully corrected on data partition" > /dev/kmsg
   else
     echo "Data filesystem does not exist or is too corrupt, making fs" > /dev/kmsg
@@ -226,10 +226,10 @@ main(){
  
   # Attempt to start from partition 1, then 2, then 3
   while true; do
-    boot_device="/dev/mmcblk0p${boot_partition}"
-    echo "Attempting to boot from ${boot_device}" > /dev/kmsg
-    mount_and_launch "${boot_device}"
-    echo "Boot from ${boot_device} failed" > /dev/kmsg
+    boot_device="/dev/mmcblk0p$boot_partition"
+    echo "Attempting to boot from $boot_device" > /dev/kmsg
+    mount_and_launch "$boot_device"
+    echo "Boot from $boot_device failed" > /dev/kmsg
     boot_partition=$((${boot_partition} + 1 % ${num_partitions}))
   done
 }
@@ -243,12 +243,12 @@ function checksum() {
   i=$1; j=$2
 
   # Get some temporary variables (f=file; h=hash)
-  part="/dev/mmcblk0p${j}"
+  part="/dev/mmcblk0p$j"
   eval size=\$sizes"$i"
   eval skip_f=\$skips"$i"
   eval skip_h=\$hash_skips"$i"
-  toff_f=$(echo $partsize - "$skip_f" \* 512 | bc)
-  toff_h=$(echo $partsize - "$skip_h" \* 512 | bc)
+  toff_f=$(echo "$partsize" - "$skip_f" \* 512 | bc)
+  toff_h=$(echo "$partsize" - "$skip_h" \* 512 | bc)
 
   # Retrieve the file, leave it in memory at /file$j, and calculate the md5sum
   tail -c "$toff_f" "$part" | head -c "$size" > /tmr/file"$j"
@@ -278,13 +278,13 @@ function mount_and_launch() {
   mkdir -p /mnt/rootfs
   mv /tmr/file /mnt/rootfs/live_rootfs.tar
   mount_rc=$?
-  if [ ${mount_rc} -eq 0 ]; then
+  if [ "$mount_rc" -eq 0 ]; then
     cd /
     extract_and_boot /mnt/rootfs/live_rootfs.tar
     umount /mnt/ramdisk
     mount -t tmpfs -o size=ROOTFSPART_SIZE tmpfs /mnt/ramdisk
   else
-    echo "Unable to mount ${1} with code (${mount_rc}), switching sides" > /dev/kmsg
+    echo "Unable to mount ${1} with code ($mount_rc), switching sides" > /dev/kmsg
   fi
 }
 
@@ -295,8 +295,8 @@ function extract_and_boot() {
   echo "Starting ramdisk extraction" > /dev/kmsg
   tar -xmf "$1" -C /mnt/ramdisk
   tar_rc=$?
-  if [ ${tar_rc} -ne 0 ]; then
-    echo "Decompression failed of file ${1} with code (${tar_rc})" > /dev/kmsg
+  if [ "$tar_rc" -ne 0 ]; then
+    echo "Decompression failed of file ${1} with code ($tar_rc)" > /dev/kmsg
   else
     echo "Ramdisk extraction completed" > /dev/kmsg
     mount --move /sys  /mnt/ramdisk/sys
